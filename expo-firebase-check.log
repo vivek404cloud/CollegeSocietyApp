@@ -1,0 +1,13 @@
+Starting project at C:\Users\91831\Desktop\ProjectD\CollegeSocietyApp
+React Compiler enabled
+Starting Metro Bundler
+
+› Opening exp://172.20.32.184:8086 on CollegeSocietyApp_API34
+Waiting on http://localhost:8086
+Logs for your project will appear below.
+Android .\index.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+ WARN  Attempted to import the module "C:\Users\91831\Desktop\ProjectD\CollegeSocietyApp\node_modules\@firebase\auth\dist\rn\index.js" which is not listed in the "exports" of "C:\Users\91831\Desktop\ProjectD\CollegeSocietyApp\node_modules\@firebase\auth" under the requested subpath "./dist/rn/index.js". Falling back to file-based resolution. Consider updating the call site or asking the package maintainer(s) to expose this API.
+Android .\index.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (1421/1423)
+Android Bundled 3979ms index.js (1423 modules)
+ WARN  Attempted to import the module "C:\Users\91831\Desktop\ProjectD\CollegeSocietyApp\node_modules\@firebase\auth\dist\rn\index.js" which is not listed in the "exports" of "C:\Users\91831\Desktop\ProjectD\CollegeSocietyApp\node_modules\@firebase\auth" under the requested subpath "./dist/rn/index.js". Falling back to file-based resolution. Consider updating the call site or asking the package maintainer(s) to expose this API.
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/AppAndFlow/react-native-safe-area-context
