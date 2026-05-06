@@ -18,7 +18,7 @@ export function FirebaseSetupScreen({ error }: FirebaseSetupScreenProps) {
         <Text style={[styles.title, { color: theme.colors.text }]}>Firebase Setup Required</Text>
         <Text style={[styles.body, { color: theme.colors.textMuted }]}>
           Add your Firebase web app credentials as `EXPO_PUBLIC_FIREBASE_*` environment variables,
-          then restart Expo.
+          plus Cloudinary upload settings as `EXPO_PUBLIC_CLOUDINARY_*`, then restart Expo.
         </Text>
         <View style={[styles.callout, { backgroundColor: theme.colors.surfaceMuted }]}>
           <Text style={[styles.code, { color: theme.colors.text }]}>{error}</Text>
@@ -26,7 +26,8 @@ export function FirebaseSetupScreen({ error }: FirebaseSetupScreenProps) {
         <Text style={[styles.body, { color: theme.colors.textMuted }]}>
           In the Firebase console, create a project, add a Web app, enable Email/Password in
           Authentication, create a Cloud Firestore database, then copy the config values into your
-          local environment.
+          local environment. For images, create a Cloudinary unsigned upload preset and add its
+          cloud name and preset name to your environment.
         </Text>
       </Card>
     </Screen>

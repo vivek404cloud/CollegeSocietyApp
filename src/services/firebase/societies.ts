@@ -18,9 +18,8 @@ import {
   where,
   writeBatch,
 } from 'firebase/firestore';
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 
-import { firebaseConfigError, firebaseDb, firebaseStorage } from '@/services/firebase/config';
+import { firebaseConfigError, firebaseDb } from '@/services/firebase/config';
 import { UserProfile } from '@/types/navigation';
 import {
   Category,
@@ -45,6 +44,8 @@ const DEFAULT_PAGE_SIZE = 8;
 const TRENDING_LIMIT = 5;
 const DEFAULT_ROLE_ID = 'member';
 const ADMIN_ROLE_ID = 'admin';
+const CLOUDINARY_CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME ?? '';
+const CLOUDINARY_UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET ?? '';
 const DEFAULT_CATEGORIES: Omit<Category, 'id'>[] = [
   {
     name: 'Technology',
@@ -128,14 +129,6 @@ function ensureDb() {
   }
 
   return firebaseDb;
-}
-
-function ensureStorage() {
-  if (!firebaseStorage) {
-    throw new Error(firebaseConfigError ?? 'Firebase Storage is not configured.');
-  }
-
-  return firebaseStorage;
 }
 
 function categoriesCollection() {
@@ -255,9 +248,12 @@ function buildShortDescription(description: string) {
   return description.trim().slice(0, 120);
 }
 
-async function uriToBlob(uri: string) {
-  const response = await fetch(uri);
-  return response.blob();
+function ensureCloudinaryConfig() {
+  if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
+    throw new Error(
+      'Missing Cloudinary config: EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME and EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET.',
+    );
+  }
 }
 
 async function seedDefaultCategories() {
@@ -315,22 +311,42 @@ export async function getSocietyById(societyId: string) {
 }
 
 export async function uploadSocietyLogo(userId: string, uri: string) {
-  const storage = ensureStorage();
+  ensureCloudinaryConfig();
   const fileExtensionMatch = uri.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
   const fileExtension = fileExtensionMatch?.[1]?.toLowerCase() ?? 'jpg';
-  const storagePath = `societies/${userId}/${Date.now()}.${fileExtension}`;
-  const logoRef = ref(storage, storagePath);
-  const blob = await uriToBlob(uri);
+  const publicId = `societies/${userId}/${Date.now()}`;
+  const formData = new FormData();
 
-  await uploadBytes(logoRef, blob, {
-    contentType: blob.type || `image/${fileExtension}`,
-  });
+  formData.append('file', {
+    uri,
+    name: `society-logo.${fileExtension}`,
+    type: `image/${fileExtension}`,
+  } as never);
+  formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+  formData.append('public_id', publicId);
+  formData.append('folder', `societies/${userId}`);
 
-  const downloadUrl = await getDownloadURL(logoRef);
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+    {
+      method: 'POST',
+      body: formData,
+    },
+  );
+
+  const result = (await response.json()) as {
+    secure_url?: string;
+    public_id?: string;
+    error?: { message?: string };
+  };
+
+  if (!response.ok || !result.secure_url || !result.public_id) {
+    throw new Error(result.error?.message || 'Cloudinary upload failed.');
+  }
 
   return {
-    downloadUrl,
-    storagePath,
+    downloadUrl: result.secure_url,
+    storagePath: result.public_id,
   };
 }
 

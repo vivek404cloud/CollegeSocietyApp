@@ -2,13 +2,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FirebaseApp, getApp, getApps, initializeApp } from 'firebase/app';
 import { Auth, getAuth, getReactNativePersistence, initializeAuth } from 'firebase/auth';
 import { Firestore, getFirestore } from 'firebase/firestore';
-import { FirebaseStorage, getStorage } from 'firebase/storage';
 
 type FirebaseConfig = {
   apiKey: string;
   authDomain: string;
   projectId: string;
-  storageBucket: string;
+  storageBucket?: string;
   messagingSenderId: string;
   appId: string;
 };
@@ -22,8 +21,10 @@ const firebaseConfig: FirebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID ?? '',
 };
 
+const requiredFirebaseKeys = ['apiKey', 'authDomain', 'projectId', 'messagingSenderId', 'appId'];
+
 const missingKeys = Object.entries(firebaseConfig)
-  .filter(([, value]) => !value)
+  .filter(([key, value]) => requiredFirebaseKeys.includes(key) && !value)
   .map(([key]) => key);
 
 export const firebaseConfigError =
@@ -50,4 +51,3 @@ function createAuthInstance(firebaseApp: FirebaseApp): Auth {
 export const firebaseApp = app;
 export const firebaseAuth = app ? createAuthInstance(app) : null;
 export const firebaseDb: Firestore | null = app ? getFirestore(app) : null;
-export const firebaseStorage: FirebaseStorage | null = app ? getStorage(app) : null;

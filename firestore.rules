@@ -1,0 +1,457 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function hasOnlyKeys(data, allowed) {
+      return data.keys().hasOnly(allowed);
+    }
+
+    function isNonEmptyString(value, maxLen) {
+      return value is string && value.size() > 0 && value.size() <= maxLen;
+    }
+
+    function isOptionalString(value, maxLen) {
+      return value == null || (value is string && value.size() <= maxLen);
+    }
+
+    function isValidUrl(value) {
+      return value is string
+        && value.size() <= 500
+        && (value.matches('^https://.+') || value.matches('^http://.+'));
+    }
+
+    function isOptionalUrl(value) {
+      return value == null || isValidUrl(value);
+    }
+
+    function isValidStatus(value) {
+      return value in ['draft', 'active', 'archived'];
+    }
+
+    function isValidMemberStatus(value) {
+      return value in ['invited', 'active', 'inactive', 'alumni'];
+    }
+
+    function isValidRoleIdList(value) {
+      return value is list && value.size() > 0 && value.size() <= 10 && value.hasOnly(['admin', 'member']);
+    }
+
+    function isValidPermissionList(value) {
+      return value is list
+        && value.size() <= 10
+        && value.hasOnly([
+          'society.manage',
+          'members.manage',
+          'roles.manage',
+          'events.manage',
+          'posts.manage',
+        ]);
+    }
+
+    function isValidSocialLink(link) {
+      return link is map
+        && hasOnlyKeys(link, ['platform', 'url'])
+        && link.platform in ['instagram', 'linkedin', 'website', 'youtube', 'x', 'discord']
+        && isValidUrl(link.url);
+    }
+
+    function isValidSocialLinks(value) {
+      return value is list && value.size() <= 10;
+    }
+
+    function societyPath(societyId) {
+      return /databases/$(database)/documents/societies/$(societyId);
+    }
+
+    function memberPath(societyId, userId) {
+      return /databases/$(database)/documents/societies/$(societyId)/members/$(userId);
+    }
+
+    function isSocietyCreator(societyId) {
+      return isSignedIn() && get(societyPath(societyId)).data.createdBy == request.auth.uid;
+    }
+
+    function isSocietyAdmin(societyId) {
+      return isSignedIn()
+        && exists(memberPath(societyId, request.auth.uid))
+        && get(memberPath(societyId, request.auth.uid)).data.roleIds.hasAny(['admin']);
+    }
+
+    function canManageSociety(societyId) {
+      return isSocietyCreator(societyId) || isSocietyAdmin(societyId);
+    }
+
+    function isValidUserProfileCreate(uid) {
+      let data = request.resource.data;
+      return isOwner(uid)
+        && hasOnlyKeys(
+          data,
+          ['uid', 'email', 'name', 'college', 'branch', 'year', 'role', 'createdAt', 'updatedAt'],
+        )
+        && data.uid == uid
+        && data.email == request.auth.token.email
+        && data.name is string
+        && data.college is string
+        && data.branch is string
+        && data.year is string
+        && data.role in ['Student', 'Admin']
+        && data.createdAt == request.time
+        && data.updatedAt == request.time;
+    }
+
+    function isValidUserProfileUpdate(uid) {
+      let data = request.resource.data;
+      return isOwner(uid)
+        && hasOnlyKeys(
+          data,
+          ['uid', 'email', 'name', 'college', 'branch', 'year', 'role', 'createdAt', 'updatedAt'],
+        )
+        && data.uid == uid
+        && data.email == resource.data.email
+        && data.createdAt == resource.data.createdAt
+        && data.name is string
+        && data.college is string
+        && data.branch is string
+        && data.year is string
+        && data.role in ['Student', 'Admin']
+        && data.updatedAt == request.time;
+    }
+
+    function isValidCategoryCreate() {
+      let data = request.resource.data;
+      return isSignedIn()
+        && hasOnlyKeys(
+          data,
+          ['name', 'slug', 'description', 'icon', 'isFeatured', 'createdAt', 'updatedAt'],
+        )
+        && isNonEmptyString(data.name, 80)
+        && isNonEmptyString(data.slug, 80)
+        && isNonEmptyString(data.description, 300)
+        && (data.icon == null || data.icon is string)
+        && data.isFeatured is bool
+        && data.createdAt == request.time
+        && data.updatedAt == request.time;
+    }
+
+    function isValidSocietyCreate() {
+      let data = request.resource.data;
+      return isSignedIn()
+        && hasOnlyKeys(
+          data,
+          [
+            'name',
+            'nameLowercase',
+            'slug',
+            'shortName',
+            'description',
+            'shortDescription',
+            'categoryId',
+            'logoUrl',
+            'logoPath',
+            'bannerUrl',
+            'socialLinks',
+            'status',
+            'foundedYear',
+            'contactEmail',
+            'memberCount',
+            'followerCount',
+            'trendingScore',
+            'createdBy',
+            'createdAt',
+            'updatedAt',
+          ],
+        )
+        && isNonEmptyString(data.name, 120)
+        && isNonEmptyString(data.nameLowercase, 120)
+        && isNonEmptyString(data.slug, 120)
+        && isNonEmptyString(data.shortName, 20)
+        && isNonEmptyString(data.description, 3000)
+        && isNonEmptyString(data.shortDescription, 120)
+        && isNonEmptyString(data.categoryId, 120)
+        && isOptionalUrl(data.logoUrl)
+        && isOptionalString(data.logoPath, 500)
+        && isOptionalUrl(data.bannerUrl)
+        && isValidSocialLinks(data.socialLinks)
+        && isValidStatus(data.status)
+        && (data.foundedYear == null || data.foundedYear is int)
+        && isOptionalString(data.contactEmail, 200)
+        && data.memberCount == 1
+        && data.followerCount == 0
+        && data.trendingScore == 1
+        && data.createdBy == request.auth.uid
+        && data.createdAt == request.time
+        && data.updatedAt == request.time;
+    }
+
+    function isValidSocietyUpdate(societyId) {
+      let data = request.resource.data;
+      return canManageSociety(societyId)
+        && hasOnlyKeys(
+          data,
+          [
+            'name',
+            'nameLowercase',
+            'slug',
+            'shortName',
+            'description',
+            'shortDescription',
+            'categoryId',
+            'logoUrl',
+            'logoPath',
+            'bannerUrl',
+            'socialLinks',
+            'status',
+            'foundedYear',
+            'contactEmail',
+            'memberCount',
+            'followerCount',
+            'trendingScore',
+            'createdBy',
+            'createdAt',
+            'updatedAt',
+          ],
+        )
+        && isNonEmptyString(data.name, 120)
+        && isNonEmptyString(data.nameLowercase, 120)
+        && isNonEmptyString(data.slug, 120)
+        && isNonEmptyString(data.shortName, 20)
+        && isNonEmptyString(data.description, 3000)
+        && isNonEmptyString(data.shortDescription, 120)
+        && isNonEmptyString(data.categoryId, 120)
+        && isOptionalUrl(data.logoUrl)
+        && isOptionalString(data.logoPath, 500)
+        && isOptionalUrl(data.bannerUrl)
+        && isValidSocialLinks(data.socialLinks)
+        && isValidStatus(data.status)
+        && (data.foundedYear == null || data.foundedYear is int)
+        && isOptionalString(data.contactEmail, 200)
+        && data.createdBy == resource.data.createdBy
+        && data.createdAt == resource.data.createdAt
+        && data.updatedAt == request.time;
+    }
+
+    function isValidRoleCreate(societyId, roleId) {
+      let data = request.resource.data;
+      return isSignedIn()
+        && hasOnlyKeys(
+          data,
+          [
+            'societyId',
+            'name',
+            'slug',
+            'description',
+            'permissions',
+            'priority',
+            'isSystemRole',
+            'createdAt',
+            'updatedAt',
+          ],
+        )
+        && data.societyId == societyId
+        && isNonEmptyString(data.name, 80)
+        && isNonEmptyString(data.slug, 80)
+        && isNonEmptyString(data.description, 200)
+        && isValidPermissionList(data.permissions)
+        && data.priority is int
+        && data.isSystemRole is bool
+        && data.createdAt == request.time
+        && data.updatedAt == request.time
+        && canManageSociety(societyId);
+    }
+
+    function isValidRoleUpdate(societyId) {
+      let data = request.resource.data;
+      return canManageSociety(societyId)
+        && hasOnlyKeys(
+          data,
+          [
+            'societyId',
+            'name',
+            'slug',
+            'description',
+            'permissions',
+            'priority',
+            'isSystemRole',
+            'createdAt',
+            'updatedAt',
+          ],
+        )
+        && data.societyId == societyId
+        && isNonEmptyString(data.name, 80)
+        && isNonEmptyString(data.slug, 80)
+        && isNonEmptyString(data.description, 200)
+        && isValidPermissionList(data.permissions)
+        && data.priority is int
+        && data.isSystemRole is bool
+        && data.createdAt == resource.data.createdAt
+        && data.updatedAt == request.time;
+    }
+
+    function isValidMemberCreate(societyId, userId) {
+      let data = request.resource.data;
+      let isSelfJoin = isOwner(userId) && data.roleIds.hasOnly(['member']);
+      let isCreatorBootstrap =
+        isOwner(userId)
+        && data.roleIds.hasOnly(['admin'])
+        && request.auth.uid == get(societyPath(societyId)).data.createdBy;
+
+      return isSignedIn()
+        && hasOnlyKeys(
+          data,
+          [
+            'societyId',
+            'userId',
+            'roleIds',
+            'userName',
+            'userEmail',
+            'joinedAt',
+            'invitedBy',
+            'status',
+            'createdAt',
+            'updatedAt',
+          ],
+        )
+        && data.societyId == societyId
+        && data.userId == userId
+        && isValidRoleIdList(data.roleIds)
+        && isNonEmptyString(data.userName, 120)
+        && isNonEmptyString(data.userEmail, 200)
+        && (data.invitedBy == null || data.invitedBy is string)
+        && isValidMemberStatus(data.status)
+        && data.status == 'active'
+        && data.joinedAt == request.time
+        && data.createdAt == request.time
+        && data.updatedAt == request.time
+        && (isSelfJoin || isCreatorBootstrap || canManageSociety(societyId));
+    }
+
+    function isValidMemberUpdate(societyId, userId) {
+      let data = request.resource.data;
+      return canManageSociety(societyId)
+        && hasOnlyKeys(
+          data,
+          [
+            'societyId',
+            'userId',
+            'roleIds',
+            'userName',
+            'userEmail',
+            'joinedAt',
+            'invitedBy',
+            'status',
+            'createdAt',
+            'updatedAt',
+          ],
+        )
+        && data.societyId == societyId
+        && data.userId == userId
+        && isValidRoleIdList(data.roleIds)
+        && isNonEmptyString(data.userName, 120)
+        && isNonEmptyString(data.userEmail, 200)
+        && (data.invitedBy == null || data.invitedBy is string)
+        && isValidMemberStatus(data.status)
+        && data.joinedAt == resource.data.joinedAt
+        && data.createdAt == resource.data.createdAt
+        && data.updatedAt == request.time;
+    }
+
+    function isValidEventCreate(societyId) {
+      let data = request.resource.data;
+      return canManageSociety(societyId)
+        && hasOnlyKeys(
+          data,
+          ['societyId', 'title', 'description', 'venue', 'startAt', 'endAt', 'createdAt', 'updatedAt'],
+        )
+        && data.societyId == societyId
+        && isNonEmptyString(data.title, 120)
+        && isNonEmptyString(data.description, 3000)
+        && data.venue is string
+        && data.startAt is timestamp
+        && data.endAt is timestamp
+        && data.createdAt == request.time
+        && data.updatedAt == request.time;
+    }
+
+    function isValidEventUpdate(societyId) {
+      let data = request.resource.data;
+      return canManageSociety(societyId)
+        && hasOnlyKeys(
+          data,
+          ['societyId', 'title', 'description', 'venue', 'startAt', 'endAt', 'createdAt', 'updatedAt'],
+        )
+        && data.societyId == societyId
+        && isNonEmptyString(data.title, 120)
+        && isNonEmptyString(data.description, 3000)
+        && data.venue is string
+        && data.startAt is timestamp
+        && data.endAt is timestamp
+        && data.createdAt == resource.data.createdAt
+        && data.updatedAt == request.time;
+    }
+
+    function isValidFollowCreate(userId, societyId) {
+      let data = request.resource.data;
+      return isOwner(userId)
+        && hasOnlyKeys(data, ['societyId', 'userId', 'createdAt'])
+        && data.societyId == societyId
+        && data.userId == userId
+        && data.createdAt == request.time;
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isValidUserProfileCreate(userId);
+      allow update: if isValidUserProfileUpdate(userId);
+      allow delete: if false;
+
+      match /followedSocieties/{societyId} {
+        allow read: if isOwner(userId);
+        allow create: if isValidFollowCreate(userId, societyId);
+        allow delete: if isOwner(userId);
+        allow update: if false;
+      }
+    }
+
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow create: if isValidCategoryCreate();
+      allow update, delete: if false;
+    }
+
+    match /societies/{societyId} {
+      allow read: if true;
+      allow create: if isValidSocietyCreate();
+      allow update: if isValidSocietyUpdate(societyId);
+      allow delete: if false;
+
+      match /roles/{roleId} {
+        allow read: if true;
+        allow create: if isValidRoleCreate(societyId, roleId);
+        allow update: if isValidRoleUpdate(societyId);
+        allow delete: if canManageSociety(societyId);
+      }
+
+      match /members/{userId} {
+        allow read: if true;
+        allow create: if isValidMemberCreate(societyId, userId);
+        allow update: if isValidMemberUpdate(societyId, userId);
+        allow delete: if canManageSociety(societyId) || isOwner(userId);
+      }
+
+      match /events/{eventId} {
+        allow read: if true;
+        allow create: if isValidEventCreate(societyId);
+        allow update: if isValidEventUpdate(societyId);
+        allow delete: if canManageSociety(societyId);
+      }
+    }
+  }
+}
